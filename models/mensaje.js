@@ -1,5 +1,5 @@
 const { Schema, model } = require("mongoose");
-
+import { db3 } from './../../databaseMongo';
 const MensajeSchema = Schema(
   {
     mensaje: {
@@ -17,9 +17,10 @@ const MensajeSchema = Schema(
   }
 );
 
+
 MensajeSchema.method("toJSON", function () {
   const { __v, _id, ...object } = this.toObject();
   return object;
 });
 
-module.exports = model("Mensaje", MensajeSchema);
+module.exports = db3.model("Mensaje", MensajeSchema);

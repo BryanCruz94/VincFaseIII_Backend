@@ -1,12 +1,17 @@
-const Usuario = require("../models/usuario");
-const Mensaje = require("../models/mensaje");
-const Sala = require("../models/sala");
+const { enviarNotificacion } = require("../helpers/enviar-notificacion");
+const {
+  Publicacion,
+  Sala,
+  Mensaje,
+  Usuario,
+  Comentario,
+} = require("../models");
 
 const usuarioConectado = async (uid = "") => {
-  if (!uid) return null; // verifica si se proporcionó un uid válido
+  if (!uid) return null;
 
   const usuario = await Usuario.findById(uid);
-  if (!usuario) return null; // verifica si se encontró un usuario en la base de datos
+  if (!usuario) return null;
 
   usuario.online = true;
   await usuario.save();
@@ -14,18 +19,14 @@ const usuarioConectado = async (uid = "") => {
 };
 
 const usuarioDesconectado = async (uid = "") => {
-  if (!uid) return null; // verifica si se proporcionó un uid válido
+  if (!uid) return null;
 
   const usuario = await Usuario.findById(uid);
-  if (!usuario) return null; // verifica si se encontró un usuario en la base de datos
-
+  if (!usuario) return null;
   usuario.online = false;
   await usuario.save();
   return usuario;
 };
-
-
-// payload: {
 
 const grabarMensaje = async (payload) => {
   // payload: {
@@ -35,7 +36,6 @@ const grabarMensaje = async (payload) => {
   // }
 
   try {
-    console.log("grabarMensaje");
     console.log(payload);
     const mensaje = new Mensaje(payload);
     await mensaje.save();
@@ -46,37 +46,8 @@ const grabarMensaje = async (payload) => {
   }
 };
 
-// const grabarMensajeSala = async (req, res) => {
-//   try {
-//     const { mensaje, salaId } = req.body;
-//     const usuarioId = req.uid;
-
-//     // Create new message
-//     const newMessage = new Mensaje({ mensaje, usuario: usuarioId });
-//     await newMessage.save();
-
-//     // Add message to room
-//     const sala = await Sala.findById(salaId);
-//     sala.mensajes.push(newMessage._id);
-//     await sala.save();
-
-//     res.json({
-//       ok: true,
-//       sala,
-//     });
-//   } catch (error) {
-//     console.log(error);
-//     res.status(500).json({
-//       ok: false,
-//       msg: "Por favor hable con el administrador",
-//     });
-//   }
-// };
-
-//id sala - id usuario - texto de mensaje
-const grabarMensajeSala = async (payload) => {
+const grabarMensajeSala2 = async (payload) => {
   try {
-    console.log(payload);
     const { mensaje, de, para } = payload;
     const sala = await Sala.findById(para);
 
@@ -93,13 +64,112 @@ const grabarMensajeSala = async (payload) => {
   }
 };
 
+const grabarMensajeSala = async (payload) => {
+  try {
+    const { mensaje, de, para } = payload;
+    // console.log(payload);
+    const newMessage = new Mensaje({ mensaje, usuario: de });
+    await newMessage.save();
 
+    const sala = await Sala.findById(para);
+    sala.mensajes.push(newMessage._id);
+    await sala.save();
 
+    const usuariosEnGrupoOffline = await obtenerUsuariosSalaHelper(para, de);
+
+    for (const usuario of usuariosEnGrupoOffline) {
+      if (usuario._id.toString() === de) {
+        continue;
+      }
+
+      //actualizar isSalasPendiente a true
+      usuario.isSalasPendiente = true;
+      usuario.isNotificacionesPendiente = true;
+
+      usuario.salas = usuario.salas.map((sala) => {
+        if (sala.salaId.toString() === para) {
+          sala.mensajesNoLeidos++;
+          sala.ultimaVezActivo = new Date();
+        }
+
+        return sala;
+      });
+
+      await usuario.save();
+    }
+
+    const tokens = usuariosEnGrupoOffline.map((usuario) => usuario.tokenApp);
+    const titulo = "Nuevo mensaje";
+    const desc = `Tienes un nuevo mensaje en el grupo ${sala.nombre}`;
+
+    const data = {
+      salaId: sala._id,
+      nombre: sala.nombre,
+      mensajesNoLeidos: sala.mensajesNoLeidos,
+      ultimaVezActivo: sala.ultimaVezActivo,
+      type: "sala",
+    };
+
+    const allTokens = [].concat(...tokens);
+    //TODO: enviar notificación
+    await enviarNotificacion(allTokens, titulo, desc, data);
+    return true;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+};
+
+const obtenerUsuariosSalaHelper = async (salaId, usuarioId) => {
+  try {
+    // El usuario que envía el mensaje
+    const usuariosEnSala = await Usuario.find({
+      "salas.salaId": salaId,
+      "salas.isRoomOpen": false,
+      _id: { $ne: usuarioId },
+    });
+
+    return usuariosEnSala;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+};
+
+const grabarComentarioPublicacion = async (payload) => {
+  console.log(payload);
+  const usuarioId = payload.de;
+  try {
+    const { mensaje, para } = payload;
+
+    const publicacion = await Publicacion.findById(para);
+    if (!publicacion) {
+      return res.status(404).json({ error: "Publicación no encontrada" });
+    }
+
+    const comentario = new Comentario({
+      contenido: mensaje,
+      usuario: usuarioId,
+      publicacion: para,
+      estado: "publicado",
+    });
+
+    await comentario.save();
+
+    publicacion.comentarios.push(comentario._id);
+    await publicacion.save();
+
+    return comentario._id.toString();
+  } catch (error) {
+    console.error(error);
+    return false;
+  }
+};
 
 module.exports = {
   usuarioConectado,
   usuarioDesconectado,
   grabarMensaje,
   grabarMensajeSala,
-
+  grabarComentarioPublicacion,
 };

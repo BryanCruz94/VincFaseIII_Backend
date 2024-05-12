@@ -2,18 +2,15 @@ const path = require("path");
 const fs = require("fs");
 
 const { response } = require("express");
-const { subirArchivo } = require("../helpers/subir-archivo");
+const { subirArchivoUsuario } = require("../helpers/subir-archivo");
 
-const Publicacion = require("../models/publicacion");
-const Usuario = require("../models/usuario");
+const { Usuario, Publicacion } = require("../models");
 
 const cargarArchivo = async (req, res = response) => {
-
   try {
     const nombres = [];
     for (const archivo of req.files.archivo) {
-      const nombre = await subirArchivo(archivo, undefined, "imgs");
-      console.log(nombre);
+      const nombre = await subirArchivoUsuario(archivo, undefined, "imgs");
       nombres.push(nombre);
     }
     res.json({ nombres });
@@ -21,7 +18,6 @@ const cargarArchivo = async (req, res = response) => {
     res.status(400).json({ msg });
   }
 };
-
 
 const mostrarImagen = async (req, res = response) => {
   const { id, coleccion } = req.params;
@@ -62,14 +58,13 @@ const mostrarImagen = async (req, res = response) => {
     //motrar imagen si concide con el id del arreglo de imagenes
     const pathImagen = path.join(
       __dirname,
-      "../uploads",
-      coleccion+"/"+modelo.titulo.replace(/\s/g, ""),
+      "../../../uploads",
+      coleccion + "/" + modelo.titulo.replace(/\s/g, ""),
       modelo.imagenes.find((img) => img === idqury)
     );
 
-    console.log(pathImagen);
-
     if (fs.existsSync(pathImagen)) {
+      //Sirve para verificar si existe el archivo en el path especificado
       return res.sendFile(pathImagen);
     }
   }
@@ -108,10 +103,10 @@ const mostrarAllImagenes = async (req, res = response) => {
 
   // Limpiar imágenes previas
   if (modelo.imagenes && modelo.imagenes.length > 0) {
-    const pathImagenes = modelo.imagenes.map(imagenId => {
+    const pathImagenes = modelo.imagenes.map((imagenId) => {
       const pathImagen = path.join(
         __dirname,
-        "../uploads",
+        "../../../uploads",
         coleccion,
         imagenId
       );
@@ -119,7 +114,7 @@ const mostrarAllImagenes = async (req, res = response) => {
     });
 
     // Filtrar las rutas de imagen válidas
-    const rutasValidas = pathImagenes.filter(ruta => ruta !== null);
+    const rutasValidas = pathImagenes.filter((ruta) => ruta !== null);
 
     if (rutasValidas.length > 0) {
       return res.json({ imagenes: rutasValidas });
@@ -131,6 +126,44 @@ const mostrarAllImagenes = async (req, res = response) => {
   res.sendFile(pathImagen);
 };
 
+const mostrarImagenUsuario = async (req, res = response) => {
+  const { id, coleccion } = req.params;
+
+  let modelo;
+
+  switch (coleccion) {
+    case "usuarios":
+      modelo = await Usuario.findById(id);
+      if (!modelo) {
+        return res.status(400).json({
+          msg: `No existe un usuario con el id ${id}`,
+        });
+      }
+
+      break;
+
+    default:
+      return res.status(500).json({ msg: "Se me olvidó validar esto" });
+  }
+
+  // Limpiar imágenes previas
+  if (modelo.img) {
+    // Hay que borrar la imagen del servidor
+    const pathImagen = path.join(
+      __dirname,
+      "../../../uploads",
+      coleccion,
+      modelo.img
+    );
+    
+    if (fs.existsSync(pathImagen)) {
+      return res.sendFile(pathImagen);
+    }
+  }
+
+  const pathImagen = path.join(__dirname, "../assets/no-image.jpg");
+  res.sendFile(pathImagen);
+};
 
 const actualizarImagen = async (req, res = response) => {
   const { id, coleccion } = req.params;
@@ -162,12 +195,11 @@ const actualizarImagen = async (req, res = response) => {
       return res.status(500).json({ msg: "Se me olvidó validar esto" });
   }
 
-  // Limpiar imágenes previas
   if (modelo.img) {
     // Hay que borrar la imagen del servidor
     const pathImagen = path.join(
       __dirname,
-      "../uploads",
+      "../../../uploads",
       coleccion,
       modelo.img
     );
@@ -175,6 +207,13 @@ const actualizarImagen = async (req, res = response) => {
       fs.unlinkSync(pathImagen);
     }
   }
+
+  const nombre = await subirArchivoUsuario(req.files, undefined, coleccion);
+  modelo.img = nombre;
+
+  await modelo.save();
+
+  res.json(modelo);
 };
 
 module.exports = {
@@ -182,4 +221,5 @@ module.exports = {
   mostrarImagen,
   mostrarAllImagenes,
   actualizarImagen,
+  mostrarImagenUsuario,
 };

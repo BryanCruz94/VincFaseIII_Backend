@@ -1,12 +1,8 @@
-const Mensaje = require("../models/mensaje");
-const Sala = require("../models/sala");
-const Usuario = require("../models/usuario");
+const { Usuario, Sala, Mensaje } = require("../models");
 
 const getMensajeByUser = async (req, res) => {
   const miId = req.uid;
-  console.log(miId);
 
-  //Trae todo los mnesjaes por id de usuario
   const mensajes = await Mensaje.find({
     usuario: miId,
   });
@@ -17,8 +13,6 @@ const getMensajeByUser = async (req, res) => {
   });
 };
 
-
-//traer todos los mensajes
 const getAllMessages = async (req, res) => {
   const messages = await Mensaje.find();
   res.json({
@@ -27,31 +21,48 @@ const getAllMessages = async (req, res) => {
   });
 };
 
-//getMensajeByRoom
 const getMensajeByRoom = async (req, res) => {
-
-  const miId = req.uid;
   const { salaId } = req.params;
+  const { limite = 50, desde = 0 } = req.query;
+  const usuarioId = req.uid;
 
   try {
-    //traer los mensajes de la sala limitado a 30 y de forma descendente
-    const sala = await Sala.findById(salaId).populate("mensajes");
+    const sala = await Sala.findById(salaId)
+      .populate({
+        path: "mensajes",
+        options: {
+          skip: Number(desde),
+          limit: Number(limite),
+          sort: { createdAt: -1 },
+        },
+      })
+      .lean();
 
-    const last30 = sala.mensajes.slice(-30).reverse();
+    const mensajesSala = await Promise.all(
+      sala.mensajes.map(async (mensaje) => {
 
-    // agregar el nombre del usuario que envió cada mensaje
-    const mensajesSala = await Promise.all(last30.map(async (mensaje) => {
-      const usuarioMensaje = await Usuario.findById(mensaje.usuario);
-      mensaje = mensaje.toObject(); // Convertir a objeto para poder agregar propiedades
-      mensaje.nombre = usuarioMensaje.nombre;
-      return mensaje;
-    }));
-     
+        const usuarioMensaje = await Usuario.findById(mensaje.usuario);
+
+        mensaje = { ...mensaje, nombre: usuarioMensaje.nombre, img: usuarioMensaje.img, isGoogle: usuarioMensaje.google };
+        return mensaje;
+      })
+    );
+
+    const usuario = await Usuario.findById(usuarioId);
+
+    // Encontrar la entrada correspondiente en la lista de salas del usuario para la sala específica
+    const salaUsuario = usuario.salas.find((salaUsuario) => salaUsuario.salaId.toString() === salaId);
+
+    // Reiniciar el contador de mensajes no leídos (mensajesNoLeidos) a cero para esa entrada
+    if (salaUsuario) {
+      salaUsuario.mensajesNoLeidos = 0;
+      await usuario.save(); 
+    }
+
     res.json({
-      ok: true, 
+      ok: true,
       mensajesSala,
     });
-
   } catch (error) {
     console.log(error);
     res.status(500).json({
@@ -62,8 +73,55 @@ const getMensajeByRoom = async (req, res) => {
 };
 
 
-module.exports = {
 
+const getMensajeByRoom2 = async (req, res) => {
+  const { salaId } = req.params;
+  const { limite = 50, desde = 0 } = req.query;
+  const miId = req.uid;
+
+  try {
+    const sala = await Sala.findById(salaId)
+      .populate({
+        path: "mensajes",
+        options: {
+          skip: Number(desde),
+          limit: Number(limite),
+          sort: { createdAt: -1 },
+        },
+      })
+      .lean();
+
+    const mensajesSala = await Promise.all(
+      sala.mensajes.map(async (mensaje) => {
+        const usuarioMensaje = await Usuario.findById(mensaje.usuario);
+        mensaje = { ...mensaje, nombre: usuarioMensaje.nombre, img: usuarioMensaje.img, isGoogle: usuarioMensaje.google };
+        return mensaje;
+      })
+    );
+
+    // Marcar los mensajes de la sala como leídos por el usuario
+    const mensajesIds = mensajesSala.map((mensaje) => mensaje._id);
+    await Mensaje.updateMany(
+      { _id: { $in: mensajesIds }, leidoPor: { $ne: miId } },
+      { $addToSet: { leidoPor: miId } }
+    );
+
+    res.json({
+      ok: true,
+      mensajesSala,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({
+      ok: false,
+      msg: "Por favor hable con el administrador",
+    });
+  }
+};
+
+
+
+module.exports = {
   getAllMessages,
   getMensajeByUser,
   getMensajeByRoom,

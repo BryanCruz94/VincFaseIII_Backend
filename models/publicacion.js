@@ -1,5 +1,5 @@
 const { Schema, model } = require("mongoose");
-
+import { db3 } from './../../databaseMongo';
 const PublicacionSchema = Schema(
   {
     titulo: {
@@ -22,7 +22,7 @@ const PublicacionSchema = Schema(
     barrio: {
       type: String,
       required: true,
-    },
+    },  
     isPublic: {
       type: Boolean,
       default: true,
@@ -32,10 +32,16 @@ const PublicacionSchema = Schema(
       ref: "Usuario",
       required: true,
     },
-    likes: {
-      type: Number,
-      default: 0,
+    nombreUsuario: {
+      type: String,
+      required: true,
     },
+    likes: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Usuario",
+      },
+    ],
     //lista de imagenes
     imagenes: [
       {
@@ -63,16 +69,24 @@ const PublicacionSchema = Schema(
       type: Boolean,
       default: false,
     },
+    isActivo: {
+      type: Boolean,
+      default: true,
+    },
+    //publicacion pendiente
+    isPublicacionPendiente: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
   }
 );
-
 PublicacionSchema.method("toJSON", function () {
   const { __v, _id, ...object } = this.toObject();
   object.uid = _id;
   return object;
 });
 
-module.exports = model("Publicacion", PublicacionSchema);
+module.exports = db3.model("Publicacion", PublicacionSchema);

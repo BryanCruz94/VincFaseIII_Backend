@@ -1,11 +1,11 @@
 /*
     path: api/login
-
+    TOUTER
 */
 const { Router } = require('express');
 const { check } = require('express-validator');
 
-const { crearUsuario, login, renewToken } = require('../controllers/auth');
+const { crearUsuario, login, renewToken, googleAuth } = require('../controllers/auth');
 const { validarCampos } = require('../middlewares/validar-campos');
 const { validarJWT } = require('../middlewares/validar-jwt');
 
@@ -23,9 +23,13 @@ router.post('/new', [
 router.post('/', [
     check('password','La contraseña es obligatoria').not().isEmpty(),
     check('email','El correo es obligatorio').isEmail(),
+    validarCampos
 ], login );
 
 
 router.get('/renew', validarJWT, renewToken );
+
+
+router.post('/google', googleAuth );    
 
 module.exports = router;

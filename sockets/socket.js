@@ -1,9 +1,11 @@
 const { comprobarJWT } = require("../helpers/jwt");
-const { io } = require("../index");
+const { io } = require("../../app");
+
 const {
   usuarioConectado,
   usuarioDesconectado,
   grabarMensajeSala,
+  grabarComentarioPublicacion,
 } = require("../controllers/socket");
 
 // Mensajes de Sockets
@@ -12,20 +14,18 @@ io.on("connection", (client) => {
 
   // console.log(client.handshake.headers);
   console.log(client.handshake.headers["x-token"], "token");
-  console.log("cliente.id");
+
   const [valido, uid] = comprobarJWT(client.handshake.headers["x-token"]);
 
-   // Verificar autenticación
-   
-   if (!valido) {
+  // Verificar autenticación
+
+  if (!valido) {
     console.log("Cliente no autenticado");
     return client.disconnect();
-   }
+  }
 
-  // Cliente autenticado
   usuarioConectado(uid);
   console.log("Cliente autenticado");
-  // TODO: Ingresar al usuario a una sala en particular
   client.on("join-room", async (payload) => {
     const { codigo } = payload;
     console.log(codigo, "codigo");
@@ -40,11 +40,16 @@ io.on("connection", (client) => {
     }
   });
 
-  //mensaje-grupal
   client.on("mensaje-grupal", async (payload) => {
     grabarMensajeSala(payload);
     client.broadcast.to(payload.para).emit("mensaje-grupal", payload);
   });
+
+  client.on("comentario-publicacion", async (payload) => {
+    // grabarComentarioPublicacion(payload);
+    client.broadcast.to(payload.para).emit("comentario-publicacion", payload);
+  });
+  
 
   client.on("disconnect", () => {
     usuarioDesconectado(uid);

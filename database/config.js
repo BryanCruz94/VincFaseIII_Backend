@@ -1,8 +1,8 @@
 const mongoose = require("mongoose");
-
+const config = require("../../config")
 const dbConnection = async () => {
   try {
-    await mongoose.connect(process.env.DB_CNN);
+    await mongoose.connect(config.default.mongodbSSEGRI);
 
     console.log("DB Online");
   } catch (error) {

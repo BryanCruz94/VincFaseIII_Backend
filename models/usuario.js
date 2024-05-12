@@ -1,15 +1,6 @@
 const { Schema, model } = require("mongoose");
+import { db3 } from './../../databaseMongo';
 
-const DireccionSchema = Schema({
-  latitud: {
-    type: Number,
-    required: true,
-  },
-  longitud: {
-    type: Number,
-    required: true,
-  },
-});
 
 const UsuarioSchema = Schema({
   nombre: {
@@ -25,12 +16,70 @@ const UsuarioSchema = Schema({
     type: String,
     required: true,
   },
-  direcciones: [DireccionSchema],
+  ubicaciones: [
+    {
+      type: Schema.Types.ObjectId,
+      ref: "Ubicacion",
+    },
+  ],  
+  telefono: {
+    type: String,
+  },
+  telefonos : [
+    {
+      type: String,
+    }
+  ],
+  img: {
+    type: String,
+  },
   online: {
     type: Boolean,
     default: false,
   },
-});
+  tokenApp: {
+    type: String,
+    default: null,
+  },
+  google: {
+    type: Boolean,
+    default: false,
+  },
+  isOpenRoom: {
+    type: Boolean,
+    default: false,
+  },
+  isActivo: {
+    type: Boolean,
+    default: true,
+  },
+  isPublicacionPendiente: {
+    type: Boolean,
+    default: false,
+  },
+  isSalasPendiente: {
+    type: Boolean,
+    default: false,
+  },
+  isNotificacionesPendiente: {
+    type: Boolean,
+    default: false,
+  },
+  salas: [
+    {
+      salaId: { type: Schema.Types.ObjectId, ref: "Sala" },
+      mensajesNoLeidos: { type: Number, default: 0 },
+      ultimaVezActivo: { type: Date, default: null },
+      isRoomOpen: { type: Boolean, default: false },
+    },
+  ],
+},
+{
+  timestamps: true,
+}
+);
+
+
 
 UsuarioSchema.method("toJSON", function () {
   const { __v, _id, password, ...object } = this.toObject();
@@ -38,4 +87,5 @@ UsuarioSchema.method("toJSON", function () {
   return object;
 });
 
-module.exports = model("Usuario", UsuarioSchema);
+module.exports = db3.model("Usuario", UsuarioSchema);
+
